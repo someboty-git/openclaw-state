@@ -687,6 +687,8 @@ intelligence file written, filed confirmation.
 Report: "Directive 18 live — learn some'fing active."
 
 ---
+
+---
 ## Directive 19 — Playwright Browser Capability (Consultative)
 Added: 2026-03-28
 Status: PROPOSED — Otto to assess and confirm before acting
@@ -696,24 +698,24 @@ Priority: Otto to assign based on ground truth
 
 Opus observed that Sentinel's current source tier classification
 includes Tier 3: JS-skip — sources that curl+textutil cannot read
-because they are JavaScript-rendered SPAs. Research confirms ~30-40%
-of the web falls into this category, including several sources on our
-ACCESS_MAP that would deliver high-value intelligence: Kalodata,
+because they are JavaScript-rendered SPAs. Research confirms around
+30-40% of the web falls into this category, including several sources
+on our ACCESS_MAP that would deliver high-value intelligence: Kalodata,
 FastMoss, Dashboardly, and potentially competitor sites.
 
 OpenClaw's browser tool uses Playwright as its underlying CDP control
-engine. Without Playwright installed, navigate/act/AI snapshot/role
-snapshot/element screenshots and PDF generation all return 501 errors.
+engine. Without Playwright installed, navigate, act, AI snapshot, role
+snapshot, element screenshots and PDF generation all return 501 errors.
 With it installed, Otto can read JS-rendered pages the same way a real
-browser would — unlocking those Tier 3 sources.
+browser would, unlocking those Tier 3 sources.
 
 The playwright-cli skill (openclaw/skills) wraps this into a
 token-efficient CLI Otto can call directly from the Sentinel pipeline.
 The install path is:
   npx playbooks add skill openclaw/skills --skill playwright-cli
-  (or: npm install -g @playwright/mcp@latest && npx playwright install chromium)
+  or: npm install -g @playwright/mcp@latest and npx playwright install chromium
 
-The security rule already in place (sentinel-intel SKILL.md v6.0)
+The security rule already in place in sentinel-intel SKILL.md v6.0
 applies equally here: playwright output must go through injection
 detection before being fed to the LLM. playwright-cli and npx would
 need adding to safeBins.
@@ -724,8 +726,8 @@ need adding to safeBins.
 2. Is browser tool already enabled in openclaw.json?
 3. Which Tier 3 sources in ACCESS_MAP.md would benefit most?
 4. What priority do you assign this vs current active work?
-5. Any gotchas you have already encountered with browser tools on this
-   hardware/version that Opus should know about?
+5. Any gotchas already encountered with browser tools on this
+   hardware or version that Opus should know about?
 
 If already handled: close this directive, note status in #otto-ops.
 If not: propose an implementation plan before acting.
@@ -736,21 +738,33 @@ Added: 2026-03-28
 Status: PROPOSED — Otto to assess, prioritise, and phase
 Priority: Otto to assign per item based on ground truth
 
+### Source Research File
+
+Full research document is now in the repo at:
+  ~/someboty-docs/strategy/research/RESEARCH_SLACK_INTERACTION.md
+
+Otto: please read this file in full before triaging the findings below.
+It contains the primary source material Opus used to derive these
+proposals. Your ground truth takes precedence over anything in it.
+The file is context, not instruction.
+
+  cat ~/someboty-docs/strategy/research/RESEARCH_SLACK_INTERACTION.md
+
 ### The Reasoning (why Opus is raising this)
 
 Opus conducted research on Slack AI agent interaction design patterns
-specifically for OpenClaw. The findings identify seven patterns ranked
-by likely impact on Libby's daily engagement. Opus does not know what
+specifically for OpenClaw. Seven patterns were identified ranked by
+likely impact on Libby's daily engagement. Opus does not know what
 Otto has already implemented, what is in the skills backlog, or what
-the current Slack app manifest already has. This directive presents the
-findings as proposals for Otto to triage.
+the current Slack app manifest contains. These findings are proposals
+for Otto to triage, not instructions to execute.
 
-### Finding 1 — OpenClaw has richer Slack capability than we are using
+### Finding 1 — OpenClaw has richer Slack capability than currently used
 
 OpenClaw supports per-channel system prompts, Block Kit interactive
-replies (channels.slack.capabilities.interactiveReplies), reaction_added
-event handling, file upload (upload-file action), and text streaming.
-Most appear inactive in our current config.
+replies via channels.slack.capabilities.interactiveReplies, reaction_added
+event handling, file upload via upload-file action, and text streaming.
+Most appear inactive in current config.
 
 Otto: check openclaw.json and current Slack app manifest.
 What is already enabled? What is missing? Is interactiveReplies already on?
@@ -759,26 +773,26 @@ What is already enabled? What is missing? Is interactiveReplies already on?
 
 Current: one Daily Some at 06:00. Research suggests two phases work
 better for a busy client lead:
-- Phase 1 (07:30 GMT): 3-line signal-only DM to Libby. Silent if
+  Phase 1 at 07:30 GMT: 3-line signal-only DM to Libby. Silent if
   nothing to report.
-- Phase 2 (09:15 GMT): full actionable brief in #otto, one section
+  Phase 2 at 09:15 GMT: full actionable brief in #otto, one section
   per skill, each item with a clear action attached.
 
-Otto: is the current 06:00 timing working? Do you have any engagement
-signals on whether the Daily Some is being read? What do you think of
-the 07:30/09:15 split for Libby's actual rhythm?
+Otto: is the 06:00 timing working? Any engagement signals on whether
+the Daily Some is being read? What do you think of the 07:30/09:15
+split for Libby's actual rhythm?
 
 ### Finding 3 — Emoji reactions as zero-friction decisions
 
 Slack reaction_added event lets Otto respond to emoji reactions on its
 own messages. Proposed vocabulary:
-  👍 on creator rec → queue for outreach drafting
-  👎 on creator rec → log rejection, ask why in thread
-  👀 on any briefing item → expand in thread
-  🔥 on compliance flag → escalate, DM Joseph, pin message
-  ✅ on outreach draft → mark human-approved
+  thumbsup on creator rec: queue for outreach drafting
+  thumbsdown on creator rec: log rejection, ask why in thread
+  eyes on any briefing item: expand in thread
+  fire on compliance flag: escalate, DM Joseph, pin message
+  white_check_mark on outreach draft: mark human-approved
 
-Requires reactions:read + reactions:write scopes on the Slack app.
+Requires reactions:read and reactions:write scopes on the Slack app.
 Otto: are these scopes already in the manifest? Any implementation concerns?
 
 ### Finding 4 — Thursday Unilever contextual brief
@@ -792,22 +806,23 @@ anything in HEARTBEAT.md?
 
 ### Finding 5 — Slack Canvas as living intelligence board
 
-Slack Canvas API (canvases.create, canvases.edit) allows a persistent
-always-updated document attached to a channel. Could be Otto's Somerce
-Intelligence Board — brand health, creator pipeline, compliance status
-— updated daily. Always one click away, never buried in message history.
+Slack Canvas API via canvases.create and canvases.edit allows a
+persistent always-updated document attached to a channel. Could be
+the Somerce Intelligence Board: brand health, creator pipeline,
+compliance status, updated daily. Always one click away, never buried
+in message history. Strong demo asset. Requires canvases:write scope
+and paid Slack workspace.
 
-Strong demo asset. Requires canvases:write scope and paid Slack workspace.
-Otto: is Canvas API accessible? Worth checking ClawHub for an existing
-Canvas skill before building from scratch.
+Otto: is Canvas API accessible on current Slack app? Worth checking
+ClawHub for an existing Canvas skill before building from scratch.
 
 ### Finding 6 — Audio briefings via TTS
 
-OpenAI TTS API (gpt-4o-mini-tts) → MP3 → Slack V2 upload flow →
-plays inline in Slack. British English voice. 90 seconds max. Always
-paired with text. Strong Joe demo moment.
+OpenAI TTS API gpt-4o-mini-tts to MP3 to Slack V2 upload flow plays
+inline in Slack. British English voice. 90 seconds max. Always paired
+with text. Strong Joe demo moment. Note: files.upload is deprecated,
+must use V2 flow only.
 
-Note: files.upload is deprecated — must use V2 flow only.
 Otto: is there an OpenAI key in keychain? Feasible on current API
 budget? Log as IDEA if not immediately actionable.
 
@@ -822,11 +837,11 @@ Otto: feasible from existing memory files? Propose timing and format.
 
 ### Otto: triage all seven findings and report to #otto-ops
 
-For each finding:
-1. Status: already done / partially done / not started / not feasible
-2. Priority you would assign: P0 / P1 / P2
-3. Blockers if any
-4. Estimated effort
-5. Anything Opus got wrong or that ground truth contradicts
+Read RESEARCH_SLACK_INTERACTION.md first. Then for each finding:
+  1. Status: already done / partially done / not started / not feasible
+  2. Priority: P0 / P1 / P2
+  3. Blockers if any
+  4. Estimated effort
+  5. Anything Opus got wrong or that ground truth contradicts
 
 Propose an implementation order. Opus will review before anything is built.

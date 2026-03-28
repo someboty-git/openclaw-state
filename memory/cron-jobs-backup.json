@@ -1,0 +1,67 @@
+{
+  "exported_at": "2026-03-28T11:07:33.059068",
+  "total_jobs": 3,
+  "jobs": [
+    {
+      "name": "otto-memory-backup",
+      "enabled": true,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 23 * * *",
+        "tz": "Europe/London"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Run: cd ~/someboty-docs && git pull --rebase origin main && git add workspace-otto/memory/ workspace-otto/STATUS.md workspace-otto/MASTER_PLAN.md && git commit -m '[otto] nightly memory backup 2026-03-28T10:28:27Z' && git push origin main && echo 'Memory backup complete'"
+      },
+      "agentId": "main",
+      "delivery": {
+        "mode": "announce",
+        "channel": "last"
+      }
+    },
+    {
+      "name": "otto-pm-brief",
+      "enabled": true,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 5 * * *",
+        "tz": "Europe/London"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Post this exact message to Slack channel C0AFH2GKHV4 using the Slack API bot token from macOS keychain (security find-generic-password -a someboty -s slack-bot -w). Message: Run git log --oneline --since=24h ~/someboty-docs to get yesterday builds. Then post to #otto: BUILT: [commits]. STATUS: green/amber/red based on any cron errors. BLOCKING: nothing (or list blockers). Keep total under 300 chars. Use curl -s -X POST https://slack.com/api/chat.postMessage with Authorization Bearer [token]."
+      },
+      "agentId": "main",
+      "delivery": {
+        "mode": "announce",
+        "channel": "last"
+      }
+    },
+    {
+      "name": "kos-promotion",
+      "enabled": true,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 7 * * *",
+        "tz": "Europe/London"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "cd ~/someboty-docs && git pull --rebase origin main && python3 workspace-otto/scripts/kos_promote.py",
+        "lightContext": true
+      },
+      "agentId": "main",
+      "delivery": {
+        "mode": "announce",
+        "channel": "last"
+      }
+    }
+  ]
+}

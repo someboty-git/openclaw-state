@@ -846,3 +846,10 @@ The brand lexicon is now at `brand/THE_SOMEBOTY_BRAND_LEXICON.md`. This is the m
 7. Anti-list (Section 4) is a hard kill list. If a phrase shares DNA with anything on it, discard.
 
 **Do not** invent new "some" plays without checking them against all 8 rules. The ceiling is ~35 active plays. New ones enter only when old ones retire.
+
+## DIRECTIVE: Web Design System Prompt (28 March 2026)
+
+For ALL website work on someboty.ai pages, read `brand/SOMEBOTY_WEB_SYSTEM_PROMPT.md` BEFORE touching any HTML or CSS. This file contains the complete brand specification — palette, typography, grain rules, copy hierarchy, never-list, and a self-check checklist. Every rule in it is non-negotiable. Run the Section 14 self-check before committing any page changes.
+
+File location: `~/someboty-docs/brand/SOMEBOTY_WEB_SYSTEM_PROMPT.md`
+Deploy path: `brand/exploration/claude/` → Vercel → someboty.ai

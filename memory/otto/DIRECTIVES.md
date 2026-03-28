@@ -427,6 +427,8 @@ Only write findings rated medium or high relevance. Skip hype, skip beginner con
 - [20 Mar] .DS_Store gitignore fix — committed by Joseph.
 - [25 Mar] Full repository review — completed across multiple
   heartbeat cycles. Findings written to memory/2026-03-25.md.
+- [28 Mar] Directive 17 — Channel architecture: #otto-ops (C0APKTV7CG4) and #intel-queue (C0APV7S54P3) wired in openclaw.json. All 3 crons (otto-pm-brief, kos-promotion, otto-memory-backup) migrated to deliver to #otto-ops. Config validated. IDs extracted from Joseph's embedded Slack mentions — no manual lookup needed.
+- [28 Mar] Directive 18 — Learn some'fing teaching behaviour live. Acceptance test completed: /learn TikTok Shop affiliate commission structure UK — acknowledgement sent, 220-word synthesis with learn some'fing line produced, intelligence file written to intelligence/2026-03-28-tiktok-affiliate-commission-uk.md, filed confirmation sent to #otto-ops.
 
 ## Completed Tasks
 - [20 Mar] KOS extraction Batches 1–7 complete. All 7 extract files

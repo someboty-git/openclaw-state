@@ -1,0 +1,41 @@
+# Secrets - NEVER sync
+.env.*
+.credentials.json
+.google-tokens.json
+.google-tasks-credentials.json
+token.pickle
+refresh_token.txt
+*.key
+*.pem
+.ssh/
+
+# Ephemeral - local only
+tmp/
+media/inbound/
+media/outbound/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+logs/
+.agent/
+.cache/
+*.swp
+*.swo
+*~
+
+# Generated data - sync via API
+memory/google-tasks.json
+memory/stripe-data.json
+memory/amazon-data.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Nested git repos (add any skill folders that are their own git repos here)
+skills/openclaw-checkpoint

@@ -1,0 +1,162 @@
+#!/bin/bash
+# checkpoint-schedule - Set up automated backups with configurable frequency
+
+set -e
+
+WORKSPACE_DIR="${WORKSPACE_DIR:-$HOME/.openclaw/workspace}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CHECKPOINT_SCRIPT="$SCRIPT_DIR/checkpoint-backup"
+
+# Default frequency
+DEFAULT_FREQUENCY="hourly"
+
+show_help() {
+    cat << 'EOF'
+Usage: checkpoint-schedule [frequency]
+
+Set up automated backups for OpenClaw workspace.
+
+Frequencies:
+  15min    - Every 15 minutes
+  30min    - Every 30 minutes  
+  hourly   - Every hour (default)
+  2hours   - Every 2 hours
+  4hours   - Every 4 hours
+  daily    - Once per day at 9am
+
+Examples:
+  checkpoint-schedule hourly      # Backup every hour
+  checkpoint-schedule 15min       # Backup every 15 minutes
+  checkpoint-schedule daily       # Backup once per day
+
+To disable backups:
+  checkpoint-schedule disable
+
+EOF
+}
+
+# Parse argument
+FREQUENCY="${1:-$DEFAULT_FREQUENCY}"
+
+if [ "$FREQUENCY" = "help" ] || [ "$FREQUENCY" = "--help" ] || [ "$FREQUENCY" = "-h" ]; then
+    show_help
+    exit 0
+fi
+
+if [ "$FREQUENCY" = "disable" ]; then
+    echo "🛑 Disabling automatic backups..."
+    
+    # Remove from crontab (match script path or marker comment)
+    if crontab -l 2>/dev/null | grep -q "checkpoint"; then
+        crontab -l 2>/dev/null | grep -v "tools/checkpoint" | grep -v "openclaw-checkpoint" > /tmp/crontab.tmp 2>/dev/null || echo -n "" > /tmp/crontab.tmp
+        crontab /tmp/crontab.tmp 2>/dev/null || true
+        rm -f /tmp/crontab.tmp
+    fi
+    
+    # Remove launchd plist on macOS
+    if [[ "$OSTYPE" == darwin* ]]; then
+        PLIST="$HOME/Library/LaunchAgents/com.openclaw.checkpoint.plist"
+        if [ -f "$PLIST" ]; then
+            launchctl unload "$PLIST" 2>/dev/null || true
+            rm "$PLIST"
+        fi
+    fi
+    
+    echo "✅ Automatic backups disabled"
+    exit 0
+fi
+
+# Validate frequency
+case "$FREQUENCY" in
+    15min|30min|hourly|2hours|4hours|daily)
+        echo "📅 Setting up $FREQUENCY backups..."
+        ;;
+    *)
+        echo "❌ Unknown frequency: $FREQUENCY"
+        show_help
+        exit 1
+        ;;
+esac
+
+# Create log directory
+mkdir -p "$HOME/.openclaw/logs"
+
+# Setup based on OS
+if [[ "$OSTYPE" == darwin* ]]; then
+    # macOS - use launchd (more reliable when sleeping)
+    echo "🍎 Configuring for macOS (launchd)..."
+    
+    # Calculate interval in seconds
+    case "$FREQUENCY" in
+        15min) INTERVAL=900 ;;
+        30min) INTERVAL=1800 ;;
+        hourly) INTERVAL=3600 ;;
+        2hours) INTERVAL=7200 ;;
+        4hours) INTERVAL=14400 ;;
+        daily) INTERVAL=86400 ;;
+    esac
+    
+    PLIST="$HOME/Library/LaunchAgents/com.openclaw.checkpoint.plist"
+    
+    cat > "$PLIST" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.openclaw.checkpoint</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>$CHECKPOINT_SCRIPT</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>$INTERVAL</integer>
+    <key>StandardOutPath</key>
+    <string>$HOME/.openclaw/logs/checkpoint.log</string>
+    <key>StandardErrorPath</key>
+    <string>$HOME/.openclaw/logs/checkpoint-error.log</string>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
+EOF
+    
+    # Load the plist
+    launchctl load "$PLIST" 2>/dev/null || launchctl load -w "$PLIST"
+    
+    echo "✅ Scheduled $FREQUENCY backups via launchd"
+    echo "   Logs: ~/.openclaw/logs/checkpoint.log"
+    
+else
+    # Linux - use cron
+    echo "🐧 Configuring for Linux (cron)..."
+    
+    # Calculate cron expression
+    case "$FREQUENCY" in
+        15min) CRON="*/15 * * * *" ;;
+        30min) CRON="*/30 * * * *" ;;
+        hourly) CRON="0 * * * *" ;;
+        2hours) CRON="0 */2 * * *" ;;
+        4hours) CRON="0 */4 * * *" ;;
+        daily) CRON="0 9 * * *" ;;
+    esac
+    
+    # Remove ALL existing checkpoint entries (match the script path pattern)
+    crontab -l 2>/dev/null | grep -v "tools/checkpoint" > /tmp/crontab.tmp 2>/dev/null || echo -n "" > /tmp/crontab.tmp
+    
+    # Add new entry with marker comment
+    echo "$CRON $CHECKPOINT_SCRIPT >> $HOME/.openclaw/logs/checkpoint.log 2>&1  # openclaw-checkpoint" >> /tmp/crontab.tmp
+    
+    # Install crontab
+    crontab /tmp/crontab.tmp
+    rm /tmp/crontab.tmp
+    
+    echo "✅ Scheduled $FREQUENCY backups via cron"
+    echo "   Logs: ~/.openclaw/logs/checkpoint.log"
+    echo "   View with: crontab -l"
+fi
+
+echo ""
+echo "📊 To check status: checkpoint-status"
+echo "🛑 To disable: checkpoint-schedule disable"

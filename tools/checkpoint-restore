@@ -1,0 +1,964 @@
+#!/bin/bash
+# checkpoint-restore - Restore OpenClaw state from remote repository
+
+set -e
+
+WORKSPACE_DIR="${WORKSPACE_DIR:-$HOME/.openclaw/workspace}"
+REMOTE_URL="${CHECKPOINT_REMOTE:-origin}"
+BRANCH="${CHECKPOINT_BRANCH:-main}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ===========================================================================
+# CRON JOB RESTORE
+# Restore OpenClaw cron jobs from backup file after workspace restore
+# Reads memory/cron-jobs-backup.json and calls `openclaw cron add` per job
+# ===========================================================================
+restore_cron_jobs() {
+    local BACKUP_FILE="$WORKSPACE_DIR/memory/cron-jobs-backup.json"
+
+    if [ ! -f "$BACKUP_FILE" ]; then
+        return 0
+    fi
+
+    # Check if openclaw CLI is available
+    if ! command -v openclaw >/dev/null 2>&1; then
+        echo ""
+        echo "   ℹ️  Cron job backup found but OpenClaw CLI not available."
+        echo "      Start the gateway first, then run: checkpoint-restore"
+        return 0
+    fi
+
+    # Count jobs in backup
+    local JOB_COUNT
+    JOB_COUNT=$(python3 -c "import json; print(len(json.load(open('$BACKUP_FILE')).get('jobs',[])))" 2>/dev/null || echo "0")
+
+    if [ "$JOB_COUNT" -eq 0 ]; then
+        return 0
+    fi
+
+    echo ""
+    echo "🔄 Cron Job Restore"
+    echo "─────────────────────────────────────────"
+    echo "   Found $JOB_COUNT cron jobs in backup"
+    echo ""
+
+    read -p "   Restore $JOB_COUNT cron jobs to OpenClaw? [Y/n]: " RESTORE_CRONS
+    RESTORE_CRONS=${RESTORE_CRONS:-Y}
+
+    if [[ ! "$RESTORE_CRONS" =~ ^[Yy]$ ]]; then
+        echo "   Skipped. Restore later with: checkpoint-restore"
+        return 0
+    fi
+
+    # Check for existing cron jobs and ask what to do
+    local EXISTING_COUNT
+    EXISTING_COUNT=$(openclaw cron list --json 2>/dev/null | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('jobs',[])))" 2>/dev/null || echo "0")
+
+    if [ "$EXISTING_COUNT" -gt 0 ]; then
+        echo ""
+        echo "   ⚠️  Found $EXISTING_COUNT existing cron jobs on this machine."
+        echo ""
+        echo "   1) Keep existing + add from backup (may create duplicates)"
+        echo "   2) Erase existing, then restore from backup (clean slate)"
+        echo "   3) Cancel"
+        echo ""
+        read -p "   Choose [1-3, default: 2]: " EXISTING_CHOICE
+        EXISTING_CHOICE=${EXISTING_CHOICE:-2}
+
+        case "$EXISTING_CHOICE" in
+            1)
+                echo "   Keeping existing cron jobs..."
+                ;;
+            2)
+                echo "   Removing existing cron jobs..."
+                # Remove all existing jobs
+                openclaw cron list --json 2>/dev/null | python3 -c "
+import json, subprocess, sys
+data = json.load(sys.stdin)
+for job in data.get('jobs', []):
+    jid = job.get('id', '')
+    name = job.get('name', 'Unnamed')
+    if jid:
+        print(f'   Removing: {name}...', end=' ', flush=True)
+        r = subprocess.run(['openclaw', 'cron', 'rm', jid], capture_output=True, text=True, timeout=15)
+        print('done' if r.returncode == 0 else 'failed')
+" 2>/dev/null
+                echo ""
+                ;;
+            *)
+                echo "   Cancelled."
+                return 0
+                ;;
+        esac
+    fi
+
+    echo ""
+    echo "   Restoring cron jobs..."
+
+    # Write the Python restore script to a temp file to avoid heredoc quoting issues
+    local TEMP_SCRIPT
+    TEMP_SCRIPT=$(mktemp /tmp/restore_cron_XXXXXX)
+
+    cat > "$TEMP_SCRIPT" << 'PYEOF'
+import json, subprocess, sys
+
+backup_path = sys.argv[1]
+
+# Detect which delivery flags the CLI supports (varies by version)
+try:
+    help_out = subprocess.run(
+        ['openclaw', 'cron', 'add', '--help'],
+        capture_output=True, text=True, timeout=15
+    ).stdout + subprocess.run(
+        ['openclaw', 'cron', 'add', '--help'],
+        capture_output=True, text=True, timeout=15
+    ).stderr
+except Exception:
+    help_out = ''
+
+has_announce = '--announce' in help_out
+has_no_deliver = '--no-deliver' in help_out
+has_deliver = '--deliver' in help_out and not has_announce  # old-style flag
+
+with open(backup_path, 'r') as f:
+    data = json.load(f)
+
+jobs = data.get('jobs', [])
+restored = skipped = failed = 0
+
+for job in jobs:
+    name = job.get('name', 'Unnamed')
+    schedule = job.get('schedule', {})
+    payload = job.get('payload', {})
+
+    print(f"   • {name}...", end=" ", flush=True)
+
+    cmd = ['openclaw', 'cron', 'add']
+
+    # Name
+    if name:
+        cmd += ['--name', name]
+
+    # Schedule
+    if schedule.get('kind') == 'cron' and schedule.get('expr'):
+        cmd += ['--cron', schedule['expr']]
+        if schedule.get('tz'):
+            cmd += ['--tz', schedule['tz']]
+    elif schedule.get('kind') == 'every' and schedule.get('interval'):
+        cmd += ['--every', schedule['interval']]
+    else:
+        print("skipped (no schedule)")
+        skipped += 1
+        continue
+
+    # Session & wake
+    cmd += ['--session', job.get('sessionTarget', 'isolated')]
+    cmd += ['--wake', job.get('wakeMode', 'now')]
+    cmd += ['--agent', job.get('agentId', 'main')]
+
+    # Model
+    model = job.get('model') or payload.get('model')
+    if model:
+        cmd += ['--model', model]
+
+    # Payload
+    if payload.get('message'):
+        cmd += ['--message', payload['message']]
+    if payload.get('systemEvent'):
+        cmd += ['--system-event', payload['systemEvent']]
+    if payload.get('timeoutSeconds'):
+        cmd += ['--timeout-seconds', str(payload['timeoutSeconds'])]
+    if payload.get('thinking'):
+        cmd += ['--thinking', payload['thinking']]
+
+    # Delivery - handle both old and new CLI versions
+    # New CLI (2026.2.6+): --announce, --no-deliver
+    # Old CLI: --deliver (no --announce or --no-deliver)
+    delivery = job.get('delivery', {})
+    mode = delivery.get('mode', '')
+    if mode == 'none':
+        if has_no_deliver:
+            cmd += ['--no-deliver']
+        # Old CLI: omitting delivery flags = no delivery (default)
+    elif mode == 'announce' or delivery.get('announce'):
+        if has_announce:
+            cmd += ['--announce']
+        elif has_deliver:
+            cmd += ['--deliver']
+        if delivery.get('channel'):
+            cmd += ['--channel', delivery['channel']]
+        if delivery.get('to'):
+            cmd += ['--to', str(delivery['to'])]
+
+    # Disabled
+    if not job.get('enabled', True):
+        cmd += ['--disabled']
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode == 0:
+            print("restored")
+            restored += 1
+        else:
+            err = (result.stderr.strip() or result.stdout.strip())[:80]
+            print(f"failed ({err})")
+            failed += 1
+    except subprocess.TimeoutExpired:
+        print("timed out")
+        failed += 1
+    except Exception as e:
+        print(f"error ({e})")
+        failed += 1
+
+print()
+parts = [f"   ✅ Restored {restored} cron jobs"]
+if skipped:
+    parts.append(f"skipped {skipped}")
+if failed:
+    parts.append(f"{failed} failed")
+print(", ".join(parts))
+PYEOF
+
+    python3 "$TEMP_SCRIPT" "$BACKUP_FILE"
+    local EXIT_CODE=$?
+    rm -f "$TEMP_SCRIPT"
+    return $EXIT_CODE
+}
+
+# ===========================================================================
+# RESTORE ONBOARDING FLOW
+# Triggered when no remote is configured (first-time restore scenario)
+# ===========================================================================
+restore_onboarding() {
+    clear
+    echo "🔄 OpenClaw Checkpoint Restore"
+    echo "==============================="
+    echo ""
+    echo "Welcome! It looks like this is a fresh OpenClaw installation."
+    echo ""
+    echo "Do you have an existing checkpoint backup to restore from?"
+    echo ""
+    echo "   1) Yes - I have a GitHub repo with my OpenClaw backup"
+    echo "   2) No  - I'm setting up OpenClaw for the first time"
+    echo ""
+    read -p "Choose [1-2]: " RESTORE_CHOICE
+    
+    if [ "$RESTORE_CHOICE" = "2" ]; then
+        echo ""
+        echo "No problem! Run 'checkpoint-setup' to create your first backup."
+        echo ""
+        echo "   checkpoint-setup"
+        echo ""
+        exit 0
+    fi
+    
+    if [ "$RESTORE_CHOICE" != "1" ]; then
+        echo "❌ Invalid choice. Please run checkpoint-restore again."
+        exit 1
+    fi
+    
+    # Step 1: GitHub Authentication
+    echo ""
+    echo "🔐 Step 1: GitHub Authentication"
+    echo ""
+    
+    # Check if already authenticated with GitHub
+    GITHUB_AUTHENTICATED=false
+    
+    # Test SSH authentication
+    if ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
+        echo "   ✅ Already authenticated with GitHub (SSH)"
+        GITHUB_AUTHENTICATED=true
+        AUTH_METHOD="ssh"
+    elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+        echo "   ✅ Already authenticated with GitHub CLI"
+        GITHUB_AUTHENTICATED=true
+        AUTH_METHOD="https"
+    fi
+    
+    if [ "$GITHUB_AUTHENTICATED" = false ]; then
+        echo "   You need to authenticate with GitHub to access your backup."
+        echo ""
+        echo "   Choose authentication method:"
+        echo ""
+        echo "   1) SSH Key (recommended - no token expiry)"
+        echo "   2) GitHub CLI (opens browser automatically)"
+        echo "   3) Personal Access Token (manual)"
+        echo ""
+        read -p "Choose [1-3, default: 1]: " AUTH_CHOICE
+        AUTH_CHOICE=${AUTH_CHOICE:-1}
+        
+        case "$AUTH_CHOICE" in
+            1)
+                AUTH_METHOD="ssh"
+                setup_ssh_auth
+                ;;
+            2)
+                AUTH_METHOD="https"
+                setup_gh_cli_auth
+                ;;
+            3)
+                AUTH_METHOD="https"
+                setup_pat_auth
+                ;;
+            *)
+                AUTH_METHOD="ssh"
+                setup_ssh_auth
+                ;;
+        esac
+    fi
+    
+    # Step 2: Get repository information
+    echo ""
+    echo "📦 Step 2: Connect to your backup repository"
+    echo ""
+    echo "   Enter the details of your existing checkpoint repository."
+    echo ""
+    read -p "   GitHub username: " GITHUB_USER
+    read -p "   Repository name [openclaw-state]: " REPO_NAME
+    REPO_NAME=${REPO_NAME:-openclaw-state}
+    
+    # Build the remote URL based on auth method
+    if [ "$AUTH_METHOD" = "ssh" ]; then
+        CLONE_URL="git@github.com:$GITHUB_USER/$REPO_NAME.git"
+    else
+        CLONE_URL="https://github.com/$GITHUB_USER/$REPO_NAME.git"
+    fi
+    
+    echo ""
+    echo "   Repository: $CLONE_URL"
+    echo ""
+    
+    # Step 3: Verify repository exists and is accessible
+    echo "🔍 Step 3: Verifying repository access..."
+    if ! git ls-remote "$CLONE_URL" HEAD >/dev/null 2>&1; then
+        echo ""
+        echo "   ❌ Cannot access repository: $CLONE_URL"
+        echo ""
+        echo "   Possible issues:"
+        echo "   • Repository doesn't exist"
+        echo "   • Repository is private and you don't have access"
+        echo "   • Authentication failed"
+        echo ""
+        echo "   Please verify:"
+        echo "   • The username and repository name are correct"
+        echo "   • You have access to the repository"
+        echo "   • Your authentication is set up correctly"
+        echo ""
+        echo "   To retry authentication: checkpoint-auth"
+        exit 1
+    fi
+    echo "   ✅ Repository accessible"
+    
+    # Step 4: Restore the backup
+    echo ""
+    echo "📥 Step 4: Restoring your OpenClaw state..."
+    echo ""
+    
+    # Check if workspace directory exists and has content
+    if [ -d "$WORKSPACE_DIR" ]; then
+        # Check if it has any meaningful content (not just empty or skills folder)
+        EXISTING_FILES=$(find "$WORKSPACE_DIR" -maxdepth 1 -type f -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+        if [ "$EXISTING_FILES" -gt 0 ]; then
+            echo "   ⚠️  Your workspace already has files:"
+            ls -la "$WORKSPACE_DIR"/*.md 2>/dev/null | head -5 | sed 's/^/      /'
+            echo ""
+            echo "   How would you like to proceed?"
+            echo ""
+            echo "   1) Replace - Discard local files, use remote backup"
+            echo "   2) Merge - Keep local files, add remote backup (may cause conflicts)"
+            echo "   3) Cancel - Exit without making changes"
+            echo ""
+            read -p "   Choose [1-3]: " MERGE_CHOICE
+            
+            case "$MERGE_CHOICE" in
+                1)
+                    restore_replace "$CLONE_URL"
+                    ;;
+                2)
+                    restore_merge "$CLONE_URL"
+                    ;;
+                *)
+                    echo ""
+                    echo "   Cancelled. No changes made."
+                    exit 0
+                    ;;
+            esac
+        else
+            # Workspace exists but is mostly empty - safe to replace
+            restore_replace "$CLONE_URL"
+        fi
+    else
+        # No workspace exists - fresh clone
+        restore_fresh "$CLONE_URL"
+    fi
+    
+    # Step 5: Choose checkpoint
+    cd "$WORKSPACE_DIR"
+
+    # Count available checkpoints
+    OB_TOTAL=$(git log --oneline -10 | wc -l | tr -d ' ')
+
+    if [ "$OB_TOTAL" -gt 1 ]; then
+        echo ""
+        echo "📋 Step 5: Choose checkpoint"
+        echo ""
+        echo "   Your repository has multiple checkpoints available:"
+        echo ""
+
+        OB_HASHES=()
+        OB_LABELS=()
+        obi=1
+        while IFS= read -r line; do
+            obhash=$(echo "$line" | awk '{print $1}')
+            oblabel=$(echo "$line" | cut -d' ' -f2-)
+            OB_HASHES+=("$obhash")
+            OB_LABELS+=("$oblabel")
+            printf "   %2d) %s\n" "$obi" "$line"
+            ((obi++))
+        done < <(git log --format="%h  %cd  %s" --date=format:"%Y-%m-%d %H:%M" -10)
+
+        echo ""
+        echo "   Enter 1 for most recent, or pick an older checkpoint."
+        echo ""
+        read -p "   Select checkpoint [1]: " OB_CHOICE
+        OB_CHOICE=${OB_CHOICE:-1}
+
+        if [[ "$OB_CHOICE" =~ ^[0-9]+$ ]] && [ "$OB_CHOICE" -ge 1 ] && [ "$OB_CHOICE" -le "${#OB_HASHES[@]}" ]; then
+            OB_IDX=$((OB_CHOICE - 1))
+            if [ "$OB_IDX" -gt 0 ]; then
+                OB_FULL=$(git rev-parse "${OB_HASHES[$OB_IDX]}")
+                echo ""
+                echo "   Restoring checkpoint ${OB_HASHES[$OB_IDX]}..."
+                git reset --hard "$OB_FULL" --quiet 2>/dev/null || git reset --hard "$OB_FULL"
+            fi
+        else
+            echo "   Invalid selection, using most recent checkpoint."
+        fi
+    fi
+
+    # Step 6: Verify restoration
+    echo ""
+    echo "✅ Step 6: Restoration complete!"
+    echo ""
+    echo "   Commit: $(git rev-parse --short HEAD)"
+    echo "   Time: $(git log -1 --format=%cd --date=iso)"
+    echo ""
+    echo "   📝 Restored files:"
+    git ls-files | grep -E '\.(md|json)$' | head -10 | sed 's/^/      /'
+    FILE_COUNT=$(git ls-files | wc -l | tr -d ' ')
+    if [ "$FILE_COUNT" -gt 10 ]; then
+        echo "      ... and $((FILE_COUNT - 10)) more files"
+    fi
+    echo ""
+    echo "=============================="
+    echo "🎉 Your OpenClaw state has been restored!"
+    echo ""
+
+    # Offer to restore cron jobs
+    restore_cron_jobs
+
+    echo "   Next steps:"
+    echo "   • Restore your API keys (they're not backed up for security)"
+    echo "   • Run 'checkpoint-schedule hourly' to enable automatic backups"
+    echo "   • Start OpenClaw with 'openclaw gateway start'"
+    echo ""
+}
+
+# SSH authentication setup
+setup_ssh_auth() {
+    echo ""
+    echo "🔑 Setting up SSH authentication..."
+    
+    # Ensure .ssh directory exists
+    mkdir -p ~/.ssh
+    chmod 700 ~/.ssh
+    
+    # Add GitHub to known_hosts if not already there
+    if ! grep -q "github.com" ~/.ssh/known_hosts 2>/dev/null; then
+        echo "   Adding GitHub to known hosts..."
+        ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+        chmod 600 ~/.ssh/known_hosts
+    fi
+    
+    # Check for existing SSH key
+    SSH_KEY="$HOME/.ssh/id_ed25519"
+    if [ -f "$SSH_KEY" ]; then
+        echo "   ✅ Found existing SSH key: $SSH_KEY"
+        
+        # Test if already authorized
+        if ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
+            echo "   ✅ SSH key already authorized on GitHub!"
+            return 0
+        fi
+    else
+        echo "   Generating new SSH key..."
+        ssh-keygen -t ed25519 -C "openclaw-checkpoint" -f "$SSH_KEY" -N ""
+        echo "   ✅ SSH key generated"
+    fi
+    
+    # Show public key and guide user to add it
+    echo ""
+    echo "   Your public key:"
+    echo "   ─────────────────────────────────────────────────────────"
+    cat "${SSH_KEY}.pub"
+    echo "   ─────────────────────────────────────────────────────────"
+    echo ""
+    
+    # Copy to clipboard if possible
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        cat "${SSH_KEY}.pub" | pbcopy
+        echo "   📋 Copied to clipboard!"
+    elif command -v xclip >/dev/null 2>&1; then
+        cat "${SSH_KEY}.pub" | xclip -selection clipboard
+        echo "   📋 Copied to clipboard!"
+    fi
+    
+    echo ""
+    echo "   Add this key to your GitHub account:"
+    echo ""
+    read -p "   Press Enter to open GitHub SSH settings..."
+    
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        open "https://github.com/settings/ssh/new"
+    elif command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "https://github.com/settings/ssh/new"
+    else
+        echo "   Please open: https://github.com/settings/ssh/new"
+    fi
+    
+    echo ""
+    echo "   Instructions:"
+    echo "   1. Title: 'OpenClaw Checkpoint' (or any name)"
+    echo "   2. Key: Paste the public key (already copied)"
+    echo "   3. Click 'Add SSH key'"
+    echo ""
+    read -p "   Press Enter when you've added the key..."
+    
+    # Verify
+    echo ""
+    echo "   🔍 Testing SSH connection..."
+    if ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
+        echo "   ✅ SSH authentication successful!"
+    else
+        echo "   ⚠️  SSH test didn't confirm success, but we'll proceed."
+        echo "      If you encounter issues, run: checkpoint-auth"
+    fi
+}
+
+# GitHub CLI authentication setup
+setup_gh_cli_auth() {
+    echo ""
+    echo "🔧 Setting up GitHub CLI authentication..."
+    
+    if ! command -v gh >/dev/null 2>&1; then
+        echo "   GitHub CLI not installed."
+        echo ""
+        read -p "   Install GitHub CLI? [Y/n]: " INSTALL_GH
+        INSTALL_GH=${INSTALL_GH:-Y}
+        
+        if [[ "$INSTALL_GH" =~ ^[Yy]$ ]]; then
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                echo "   Installing via Homebrew..."
+                brew install gh
+            elif command -v apt-get >/dev/null 2>&1; then
+                echo "   Installing via apt..."
+                curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+                sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+                echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+                sudo apt update
+                sudo apt install gh -y
+            else
+                echo "   ❌ Please install GitHub CLI manually:"
+                echo "   https://github.com/cli/cli#installation"
+                exit 1
+            fi
+        else
+            echo "   Falling back to SSH authentication..."
+            AUTH_METHOD="ssh"
+            setup_ssh_auth
+            return
+        fi
+    fi
+    
+    echo ""
+    echo "   🌐 Opening browser for GitHub authentication..."
+    gh auth login --git-protocol https --web
+    gh auth setup-git
+    echo "   ✅ GitHub CLI authentication complete!"
+}
+
+# Personal Access Token authentication setup
+setup_pat_auth() {
+    echo ""
+    echo "🔑 Setting up Personal Access Token..."
+    echo ""
+    
+    TOKEN_URL="https://github.com/settings/tokens/new?description=OpenClaw%20Checkpoint&scopes=repo"
+    
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        open "$TOKEN_URL"
+    elif command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "$TOKEN_URL"
+    else
+        echo "   Please open: $TOKEN_URL"
+    fi
+    
+    echo "   Instructions:"
+    echo "   1. Note: 'OpenClaw Checkpoint'"
+    echo "   2. Expiration: 90 days (or no expiration)"
+    echo "   3. Scopes: Check 'repo' (full control)"
+    echo "   4. Click 'Generate token'"
+    echo "   5. COPY the token immediately"
+    echo ""
+    read -p "   Press Enter when you have your token..."
+    echo ""
+    read -s -p "   Paste your GitHub token: " GITHUB_TOKEN
+    echo ""
+    
+    # Store credentials
+    git config --global credential.helper osxkeychain 2>/dev/null || \
+    git config --global credential.helper libsecret 2>/dev/null || \
+    git config --global credential.helper store
+    
+    echo "   ✅ Token configured"
+}
+
+# Restore by merging into existing workspace
+restore_merge() {
+    local CLONE_URL="$1"
+    
+    echo "   Merging remote backup with local files..."
+    
+    cd "$WORKSPACE_DIR"
+    
+    # Initialize git if needed
+    if [ ! -d ".git" ]; then
+        git init --quiet
+    fi
+    
+    # Add remote
+    git remote remove origin 2>/dev/null || true
+    git remote add origin "$CLONE_URL"
+    
+    # Fetch remote
+    git fetch origin main --quiet 2>/dev/null || git fetch origin master --quiet
+    
+    # Determine branch name
+    if git rev-parse --verify origin/main >/dev/null 2>&1; then
+        REMOTE_BRANCH="main"
+    else
+        REMOTE_BRANCH="master"
+    fi
+    
+    # Commit local changes if any
+    git add -A
+    if ! git diff --cached --quiet 2>/dev/null; then
+        git commit -m "Local state before restore" --quiet
+    fi
+    
+    # Try to merge
+    if ! git pull origin "$REMOTE_BRANCH" --allow-unrelated-histories --no-edit 2>/dev/null; then
+        echo ""
+        echo "   ⚠️  Merge conflicts detected. You'll need to resolve them manually:"
+        git status | grep "both modified" | sed 's/^/      /'
+        echo ""
+        echo "   After resolving conflicts, run:"
+        echo "      cd ~/.openclaw/workspace"
+        echo "      git add -A && git commit -m 'Resolved merge conflicts'"
+        exit 1
+    fi
+    
+    echo "   ✅ Merge successful"
+}
+
+# Restore by replacing local workspace
+restore_replace() {
+    local CLONE_URL="$1"
+    
+    echo "   Replacing local workspace with remote backup..."
+    
+    # Backup skills folder if it exists (it's not part of the checkpoint)
+    SKILLS_BACKUP=""
+    if [ -d "$WORKSPACE_DIR/skills" ]; then
+        SKILLS_BACKUP=$(mktemp -d)
+        cp -r "$WORKSPACE_DIR/skills" "$SKILLS_BACKUP/"
+    fi
+    
+    # Backup tools folder if it exists (contains installed checkpoint scripts)
+    TOOLS_BACKUP=""
+    if [ -d "$WORKSPACE_DIR/tools" ]; then
+        TOOLS_BACKUP=$(mktemp -d)
+        cp -r "$WORKSPACE_DIR/tools" "$TOOLS_BACKUP/"
+    fi
+    
+    # Change to a safe directory before removing workspace
+    cd "$HOME" || cd /tmp
+    
+    # Remove existing workspace
+    rm -rf "$WORKSPACE_DIR"
+    
+    # Clone fresh
+    git clone "$CLONE_URL" "$WORKSPACE_DIR" --quiet
+    
+    # Restore skills folder
+    if [ -n "$SKILLS_BACKUP" ] && [ -d "$SKILLS_BACKUP/skills" ]; then
+        cp -r "$SKILLS_BACKUP/skills" "$WORKSPACE_DIR/"
+        rm -rf "$SKILLS_BACKUP"
+    fi
+    
+    # Restore tools folder
+    if [ -n "$TOOLS_BACKUP" ] && [ -d "$TOOLS_BACKUP/tools" ]; then
+        cp -r "$TOOLS_BACKUP/tools" "$WORKSPACE_DIR/"
+        rm -rf "$TOOLS_BACKUP"
+    fi
+    
+    echo "   ✅ Workspace replaced with remote backup"
+}
+
+# Restore to fresh/empty workspace
+restore_fresh() {
+    local CLONE_URL="$1"
+    
+    echo "   Cloning backup to fresh workspace..."
+    
+    # Ensure parent directory exists
+    mkdir -p "$(dirname "$WORKSPACE_DIR")"
+    
+    # Clone
+    git clone "$CLONE_URL" "$WORKSPACE_DIR" --quiet
+    
+    echo "   ✅ Backup cloned successfully"
+}
+
+# ===========================================================================
+# MAIN SCRIPT LOGIC
+# ===========================================================================
+
+# Check if workspace directory exists
+if [ ! -d "$WORKSPACE_DIR" ]; then
+    # No workspace at all - definitely need onboarding
+    restore_onboarding
+    exit 0
+fi
+
+cd "$WORKSPACE_DIR" || {
+    echo "❌ Cannot access workspace at $WORKSPACE_DIR"
+    exit 1
+}
+
+# Check if git repo exists
+if [ ! -d ".git" ]; then
+    # Workspace exists but no git repo - need onboarding
+    restore_onboarding
+    exit 0
+fi
+
+# Check if remote is configured
+if ! git remote get-url origin >/dev/null 2>&1; then
+    # Git repo exists but no remote - need onboarding
+    restore_onboarding
+    exit 0
+fi
+
+# Parse flags
+FORCE=false
+USE_LATEST=false
+for arg in "$@"; do
+    case "$arg" in
+        --force|-f) FORCE=true ;;
+        --latest|-l) USE_LATEST=true ;;
+    esac
+done
+
+# Normal resume flow - remote is configured
+echo "☁️  Fetching latest checkpoint..."
+if ! git fetch "$REMOTE_URL" "$BRANCH" --quiet 2>&1; then
+    FETCH_ERROR=$(git fetch "$REMOTE_URL" "$BRANCH" 2>&1)
+    
+    # Check if it's an authentication/access issue
+    if echo "$FETCH_ERROR" | grep -qE "permission denied|Could not read from remote|does not appear to be a git repository"; then
+        echo ""
+        echo "❌ Cannot access remote repository"
+        echo ""
+        echo "$FETCH_ERROR" | sed 's/^/   /'
+        echo ""
+        echo "   This could mean:"
+        echo "   • The repository no longer exists"
+        echo "   • Your authentication has expired"
+        echo "   • You don't have access to the repository"
+        echo ""
+        echo "   Options:"
+        echo "   • Run 'checkpoint-auth' to re-authenticate"
+        echo "   • Run 'checkpoint-reset' then 'checkpoint-restore' to start fresh"
+        exit 1
+    fi
+    
+    echo "❌ Failed to fetch from remote"
+    echo "$FETCH_ERROR" | sed 's/^/   /'
+    exit 1
+fi
+
+# Check if we're behind
+LOCAL=$(git rev-parse @)
+REMOTE=$(git rev-parse "$REMOTE_URL/$BRANCH")
+
+# Check for local changes that would be overwritten
+if ! git diff --quiet HEAD; then
+    if [ "$FORCE" = true ]; then
+        echo "⚠️  Discarding local changes (--force)..."
+        git checkout -- .
+        git clean -fd --quiet
+    else
+        echo "⚠️  You have uncommitted changes"
+        echo ""
+        echo "   Options:"
+        echo "     1) Save changes first (run checkpoint-backup)"
+        echo "     2) Discard local changes and restore"
+        echo "     3) Cancel"
+        echo ""
+        read -p "   Choose [1-3]: " UNCOMMITTED_CHOICE
+
+        case "$UNCOMMITTED_CHOICE" in
+            1)
+                if command -v checkpoint-backup >/dev/null 2>&1; then
+                    checkpoint-backup
+                    UNCOMMITTED_EXIT=$?
+                    if [ $UNCOMMITTED_EXIT -ne 0 ]; then
+                        exit $UNCOMMITTED_EXIT
+                    fi
+                    # After backup, re-check - we may now be clean
+                    if ! git diff --quiet HEAD; then
+                        echo "   Some changes remain uncommitted. Run checkpoint-restore again."
+                        exit 1
+                    fi
+                else
+                    echo "   Run: checkpoint-backup"
+                    exit 1
+                fi
+                ;;
+            2)
+                echo "   Discarding local changes..."
+                git checkout -- .
+                git clean -fd --quiet
+                ;;
+            *)
+                echo "   Cancelled."
+                exit 1
+                ;;
+        esac
+    fi
+fi
+
+# --latest flag: skip selection, restore most recent
+if [ "$USE_LATEST" = true ]; then
+    if [ "$LOCAL" = "$REMOTE" ]; then
+        echo "✅ Already up to date"
+        echo "   Commit: $(git rev-parse --short HEAD)"
+        echo "   Time: $(git log -1 --format=%cd --date=iso)"
+        restore_cron_jobs
+        exit 0
+    fi
+    echo "📥 Restoring latest checkpoint..."
+    if git pull "$REMOTE_URL" "$BRANCH" --quiet; then
+        echo "✅ Checkpoint restored successfully"
+        echo "   Commit: $(git rev-parse --short HEAD)"
+        echo "   Time: $(git log -1 --format=%cd --date=iso)"
+        echo ""
+        echo "📝 Recent changes:"
+        git log --oneline -3 | sed 's/^/   /'
+        restore_cron_jobs
+    else
+        echo "❌ Failed to restore checkpoint"
+        exit 1
+    fi
+    exit 0
+fi
+
+# Interactive checkpoint selection
+echo ""
+echo "📋 Available checkpoints:"
+echo ""
+
+# Build list of commits from remote branch
+COMMIT_HASHES=()
+COMMIT_LABELS=()
+i=1
+while IFS= read -r line; do
+    hash=$(echo "$line" | awk '{print $1}')
+    label=$(echo "$line" | cut -d' ' -f2-)
+    COMMIT_HASHES+=("$hash")
+    COMMIT_LABELS+=("$label")
+    # Highlight if this is the current local commit
+    if [ "$hash" = "$(git rev-parse --short HEAD)" ]; then
+        printf "   %2d) %s  ← current\n" "$i" "$line"
+    else
+        printf "   %2d) %s\n" "$i" "$line"
+    fi
+    ((i++))
+done < <(git log "$REMOTE_URL/$BRANCH" --format="%h  %cd  %s" --date=format:"%Y-%m-%d %H:%M" -10)
+
+TOTAL_COMMITS=${#COMMIT_HASHES[@]}
+
+if [ "$TOTAL_COMMITS" -eq 0 ]; then
+    echo "   No checkpoints found on remote."
+    exit 1
+fi
+
+echo ""
+echo "   Enter 1 for most recent, or pick an older checkpoint."
+echo ""
+read -p "Select checkpoint [1]: " CHECKPOINT_CHOICE
+CHECKPOINT_CHOICE=${CHECKPOINT_CHOICE:-1}
+
+# Validate input
+if ! [[ "$CHECKPOINT_CHOICE" =~ ^[0-9]+$ ]] || [ "$CHECKPOINT_CHOICE" -lt 1 ] || [ "$CHECKPOINT_CHOICE" -gt "$TOTAL_COMMITS" ]; then
+    echo "❌ Invalid selection. Please enter a number between 1 and $TOTAL_COMMITS."
+    exit 1
+fi
+
+SELECTED_INDEX=$((CHECKPOINT_CHOICE - 1))
+SELECTED_HASH="${COMMIT_HASHES[$SELECTED_INDEX]}"
+
+# Check if already on the selected commit
+CURRENT_SHORT=$(git rev-parse --short HEAD)
+if [ "$SELECTED_HASH" = "$CURRENT_SHORT" ]; then
+    echo ""
+    echo "✅ Already at this checkpoint"
+    echo "   Commit: $SELECTED_HASH"
+    echo "   Time: $(git log -1 --format=%cd --date=iso)"
+    restore_cron_jobs
+    exit 0
+fi
+
+if [ "$SELECTED_INDEX" -eq 0 ]; then
+    # Latest checkpoint - use git pull for clean fast-forward
+    echo ""
+    echo "📥 Restoring latest checkpoint..."
+    if git pull "$REMOTE_URL" "$BRANCH" --quiet; then
+        echo "✅ Checkpoint restored successfully"
+        echo "   Commit: $(git rev-parse --short HEAD)"
+        echo "   Time: $(git log -1 --format=%cd --date=iso)"
+        echo ""
+        echo "📝 Recent changes:"
+        git log --oneline -3 | sed 's/^/   /'
+        restore_cron_jobs
+    else
+        echo "❌ Failed to restore checkpoint"
+        exit 1
+    fi
+else
+    # Older checkpoint - resolve full hash and reset
+    FULL_HASH=$(git rev-parse "$SELECTED_HASH")
+    echo ""
+    echo "📥 Restoring checkpoint $SELECTED_HASH..."
+    git reset --hard "$FULL_HASH" --quiet 2>/dev/null || git reset --hard "$FULL_HASH"
+    echo "✅ Checkpoint restored to ${COMMIT_LABELS[$SELECTED_INDEX]}"
+    echo "   Commit: $(git rev-parse --short HEAD)"
+    echo "   Time: $(git log -1 --format=%cd --date=iso)"
+    echo ""
+    echo "   ⚠️  You restored an older checkpoint."
+    echo "   Your next 'checkpoint-backup' will overwrite newer remote checkpoints."
+    echo "   To return to the latest, run 'checkpoint-restore' again."
+    restore_cron_jobs
+fi

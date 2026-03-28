@@ -828,3 +828,21 @@ Read RESEARCH_SLACK_INTERACTION.md first. Then for each finding:
   5. Anything Opus got wrong or that ground truth contradicts
 
 Propose an implementation order. Opus will review before anything is built.
+
+### Directive 21 — Brand Lexicon (ACTIVE — 28 March 2026)
+**Source:** Opus
+**Priority:** P1
+**Scope:** All external-facing copy, website pages, marketing materials, white papers
+
+The brand lexicon is now at `brand/THE_SOMEBOTY_BRAND_LEXICON.md`. This is the master voice and vocabulary reference for all someboty communications.
+
+**Standing orders:**
+1. Before writing or editing ANY external-facing copy (website pages, emails, marketing, white papers, social), `cat brand/THE_SOMEBOTY_BRAND_LEXICON.md` and apply its rules.
+2. The 8 rules in Section 1 are non-negotiable quality filters. Every "some" play must pass all 8.
+3. Frequency: maximum one "some" play per screen/message. Website pages: 2-3 per page max. Error states: zero personality.
+4. Use the status/state language table (Section 3) for all loading, error, and completion states on someboty.ai pages.
+5. Use the skill-specific signature phrases when writing Otto's output formatting (Scout = "found some", Analyst = "some numbers", Shield = "flagged" with NO wordplay, etc.).
+6. For the Somerce white paper: use the sales/commercial vocabulary and the investor/press register. Maximum one "some" play per section. Numbers lead. The worked examples (Section 6) are the tone models.
+7. Anti-list (Section 4) is a hard kill list. If a phrase shares DNA with anything on it, discard.
+
+**Do not** invent new "some" plays without checking them against all 8 rules. The ceiling is ~35 active plays. New ones enter only when old ones retire.

@@ -517,3 +517,169 @@ When Joseph pastes a research response into #otto (from Claude/Gemini/Perplexity
 4. Begin demo rehearsal prep: generate a fresh Analyst briefing with demo data, verify all five skills respond to @otto mentions, time each response
 
 **Authority:** Two-way door — Otto executes all of the above autonomously. Post results to #otto.
+
+### Directive 17 — KOS Budget Guardian
+**Added:** 2026-03-28 | **Author:** Otto | **Status:** ACTIVE — Standing Order
+**Priority:** P1 — System integrity
+
+**Rule:** At every heartbeat, run the KOS health check:
+```bash
+bash ~/someboty-docs/workspace-otto/scripts/kos-health-check.sh
+```
+
+**If any container is over budget:**
+1. Post alert to #otto immediately (the script does this automatically)
+2. Write to STATUS.md: which file, how many chars over, what was just added
+3. Trim the offending file — route excess content to the correct KOS container or archive
+4. Verify: re-run the check, confirm it passes before moving on
+
+**Never add content to a KOS container without checking its budget first:**
+```bash
+wc -c ~/someboty-docs/[path/to/file]
+```
+Budget limits are in `project/KOS_META.json`.
+
+**The RAG threshold is 13 files.** We have 11. Never add a 12th container without explicit approval. When in doubt: trim existing containers, don't add new ones.
+
+
+---
+## Directive 17 — Channel Architecture: Two-Stage Output + Intel Queue
+Added: 2026-03-28
+Status: ACTIVE
+Priority: P1
+Prerequisites: Joseph must create two new Slack channels first:
+  - #otto-ops (private, Joseph only)
+  - #intel-queue (private, Joseph only)
+  Then provide their channel IDs via @otto log: or paste below.
+  #otto-ops ID: [TBC]
+  #intel-queue ID: [TBC]
+
+### 17.1 — Per-Channel Slack Config
+
+Update ~/.openclaw/openclaw.json to add per-channel configuration
+under channels.slack.channels. Use channel IDs, not names.
+
+#otto (C0AFH2GKHV4) — FRONT OF HOUSE
+- requireMention: true
+- Audience: Libby, Evie, future pilot clients
+- Behaviour: Polished output only. No internal state, no build logs,
+  no errors, no STATUS updates, no task chatter. Only deliverables:
+  Daily Some briefings, creator reports, compliance flags, Pulse
+  digests. Write as if a senior colleague sent it, not a bot.
+- systemPrompt override: "You are Otto, Someboty's intelligence
+  system. This channel is client-facing. Post only finished,
+  polished intelligence outputs. Never post internal status,
+  errors, build confirmations, or operational chatter. Every
+  message must pass the Libby test: would she find this useful
+  at 9am Monday?"
+
+#otto-ops ([TBC]) — BACK OF HOUSE
+- requireMention: false
+- Audience: Joseph only
+- Behaviour: Full operational visibility. Status updates, build
+  confirmations, error reports, cron results, heartbeat summaries,
+  all @otto task/log/idea intake. This replaces #otto as the ops
+  channel. Move all non-deliverable Slack posts here.
+- No systemPrompt override — current behaviour is correct.
+
+#intel-queue ([TBC]) — INTELLIGENCE CAPTURE
+- requireMention: false
+- Audience: Joseph only (input channel — Joseph pastes URLs here)
+- Behaviour: URL intake only. Otto watches this channel, detects
+  TikTok and YouTube URLs, queues them for transcript extraction,
+  confirms with a single reply. No conversation. No elaboration.
+- systemPrompt override: "You are Otto's intelligence intake.
+  When a TikTok or YouTube URL is posted in this channel, run
+  yt-dlp transcript extraction, write output to
+  workspace-otto/intelligence/ with topic_tags: [TECH],
+  expert_feed: Noor, target: CURRENT_STATE.md, phase: sprint.
+  Reply with: queued — [video title if available].
+  If extraction fails, reply: extraction failed — [reason].
+  Nothing else."
+
+### 17.2 — Migrate All Cron Posts to #otto-ops
+
+All cron jobs currently posting to #otto (C0AFH2GKHV4) must be
+updated to post to #otto-ops instead. Exceptions:
+- Daily Some (06:00) stays on #otto (this is the deliverable)
+- Any explicit client-facing report stays on #otto
+
+Update: otto-heartbeat, otto-sentinel-daily, otto-project-health,
+otto-kos-promotion, otto-weekly-digest. Use the #otto-ops channel ID.
+
+### 17.3 — Intel Queue Processing (yt-dlp integration)
+
+When a URL is posted to #intel-queue:
+1. Detect platform: tiktok.com = TikTok, youtube.com/youtu.be = YouTube
+2. Run: yt-dlp --write-auto-sub --skip-download --sub-lang en
+   --sub-format vtt -o /tmp/intel-%(id)s [URL]
+3. Parse VTT to clean text (strip timestamps, deduplicate lines)
+4. Write to workspace-otto/intelligence/YYYY-MM-DD-[platform]-intel.md
+   with full sentinel-intel frontmatter
+5. Confirm in #intel-queue with reply
+6. If no caption track: flag in #intel-queue and log to STATUS.md
+
+### 17.4 — Acceptance Test
+
+Post a heartbeat status update and confirm it does NOT appear in #otto.
+Post a TikTok URL in #intel-queue and confirm intelligence file is written.
+Report completion in #otto-ops: "Directive 17 complete."
+
+---
+## Directive 18 — Learn Some'fing: Teaching Behaviour + /learn Command
+Added: 2026-03-28
+Status: ACTIVE
+Priority: P1
+Note: SOUL.md Micro-Learning is the root. This directive activates and
+      extends it. Do not modify SOUL.md — this is the operational layer.
+
+### 18.1 — Learn Some'fing (Ambient Teaching)
+
+Otto teaches. Not constantly. Not as a lecture. As a sharp aside.
+
+The rule: When Otto delivers a finding, recommendation, or rejection
+that has a non-obvious principle behind it, append one sentence that
+names that principle. One sentence. Never two.
+
+Trigger conditions (teach when these apply):
+- Creator rejected: teach the qualifier that triggered it
+- Compliance flag raised: teach the rule being violated
+- Cross-brand opportunity spotted: teach why the pattern holds
+- Trend identified: teach what the signal means in context
+- User asks why about anything: teach the underlying mechanic
+- Anomaly detected in data: teach what that anomaly usually means
+
+Do NOT teach when:
+- Responding to a pure task instruction (just do it)
+- Posting the Daily Some (briefing, not a lesson)
+- A P0 alert is firing (urgency first, always)
+- The principle is obvious to the audience (don't patronise)
+- You already taught something in the last 2 messages to that user
+
+Format — the Learn Some'fing line:
+- Always the last line of the response
+- Separated by a line break
+- Prefix: learn some'fing: then the insight in plain English
+- British English. One sentence. No jargon. Dry if appropriate.
+
+### 18.2 — /learn Command
+
+When a user posts /learn [topic] in any channel Otto watches:
+
+1. Acknowledge immediately: on it — back in a moment.
+2. Research using: Brave Search, intelligence/ files, skills/ SKILL.md files
+3. Synthesise 150-250 words: direct answer, one example, learn some'fing line
+4. Write finding to workspace-otto/intelligence/ as standard intel file
+   with topic_tags, expert_feed, target, phase: permanent
+5. Confirm: filed to intelligence — Otto knows this now.
+
+If Otto cannot find a reliable answer:
+Do not guess. Say: I don't have reliable data on that — logged as a
+research task. Write to STATUS.md with priority: P2, tag: [RESEARCH-NEEDED].
+
+### 18.3 — Acceptance Test
+
+Post /learn TikTok Shop affiliate commission structure UK in #otto-ops.
+Confirm: acknowledgement, synthesised response, learn some'fing line,
+intelligence file written, filed confirmation.
+Report: "Directive 18 live — learn some'fing active."

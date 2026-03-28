@@ -19,6 +19,8 @@ SOUL.md defines personality. This file defines behaviour. BRANDS.md
 Tool permissions here are READ as instructions, not enforced by the
 gateway. Enforcement requires matching config in openclaw.json.
 
+**When you cannot locate a file, check `project/INDEX.md` first — it maps every topic to the file that covers it. Never search blindly.**
+
 ---
 
 ## Mission

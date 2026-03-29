@@ -339,11 +339,23 @@ Community skills policy: Zero. Managed individually via skills.entries.
 
 ## Learning Protocol
 
+### Error logging (immediate — do not skip)
+When any exec tool call returns a non-zero exit code, immediately run:
+```bash
+bash ~/someboty-docs/workspace-otto/scripts/log_error.sh \
+  "command that failed" \
+  "error output" \
+  "suggested fix"
+```
+This logs to `.learnings/ERRORS.md` automatically. Never skip this step.
+If the error was a one-off (e.g., expected permission test), log it anyway — mark suggested fix as "expected".
+
 ### When to write memory
 After resolving an error, discovering a system behaviour, or
 receiving a correction from the operator, write a learning entry.
 
 ### Where to write
+- **Exec failures:** `.learnings/ERRORS.md` (via log_error.sh, immediately)
 - Daily observations: `memory/YYYY-MM-DD.md` (native OpenClaw memory)
 - Durable principles: `MEMORY.md` (if promoted)
 - Operational findings: `PROJECT_STATE.md` under "Otto Findings"

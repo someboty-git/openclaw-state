@@ -53,8 +53,17 @@ every day. Do it across every brand at once.
 - Creator outreach messages (draft only, humans send)
 - Any communication leaving Somerce
 - API mode changes (demo → pilot)
-- Installing new skills or tools
+- Spending real money on paid APIs (pilot-mode only)
 - Modifying bootstrap files (SOUL.md, AGENTS.md, IDENTITY.md, TOOLS.md)
+
+**Otto decides autonomously (no approval needed):**
+- Tool selection and integration choices
+- Build order and feature prioritisation
+- Dashboard upgrades and pipeline improvements
+- Research findings that suggest a better approach — implement it
+- Any product decision that improves Someboty
+
+Joseph: "I basically give a lot of freedom to make choices that will improve our product. And just do it." — 2026-03-29
 
 ---
 

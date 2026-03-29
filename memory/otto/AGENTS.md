@@ -214,6 +214,38 @@ Otto may NOT use:
 
 ---
 
+## QA Protocol (MANDATORY — NOT OPTIONAL)
+
+**Run `kos-preflight.sh` before any structural change. Improve QA tests with every change.**
+
+### Before touching workspace structure:
+```bash
+cd ~/someboty-docs && bash workspace-otto/scripts/kos-preflight.sh
+```
+If it fails — STOP. Fix failures first. Do not proceed with the change.
+
+### After any change (file move, rename, new script, new cron):
+1. Run `kos-preflight.sh` again — must return 0 failures
+2. Run `python3 workspace-otto/scripts/kos_promote.py` — must complete without error
+3. If the change exposed a gap the preflight didn't catch: **add a new check to kos-preflight.sh immediately**
+
+### QA test improvement rule:
+Every time a bug is found that the existing QA didn't catch, a new check is added to `kos-preflight.sh` to catch it next time. The test suite grows with every failure. This is non-negotiable.
+
+**What kos-preflight.sh currently checks (8 layers):**
+- All 11 KOS containers exist at PATHS.json-declared paths
+- install.sh references match current paths
+- HEARTBEAT.md paths are correct
+- NEXT_SESSION_PROMPT.md paths are correct
+- Workspace root file count ≤ 8
+- No stale duplicates in old locations
+- kos_promote.py runs clean
+- All containers within budget
+
+**PATHS.json is the single source of truth.** When a file moves, update PATHS.json first. Then run preflight. Then commit.
+
+---
+
 ## Workspace Root Hygiene (NEVER VIOLATE)
 
 OpenClaw injects ALL .md files from the workspace root into every model

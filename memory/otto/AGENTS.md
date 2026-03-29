@@ -1,12 +1,11 @@
 ---
 file: AGENTS.md
-version: 2.3
-date: 2026-03-18T20:30:00Z
-llm: claude/opus
-machine: openclaw
-session_type: BUILD — Bidirectional handoff architecture
-summary: Added Bidirectional Handoff Protocol (STATUS.md + DIRECTIVES.md), Task Protocol (@otto TASK with echo-back, P0/P1/P2), and self-grounded verification rule. All existing content preserved.
-previous_version: 2.2 (claude/opus, openclaw, 2026-03-15)
+version: 2.4
+date: 2026-03-29T00:10:00Z
+llm: otto (claude-sonnet-4-6, openclaw)
+session_type: FIX — Workspace root hygiene rule added; reference/ structure enforced
+summary: Added Workspace Root Hygiene section — explicit rule that ONLY 8 files belong in workspace root, everything else to reference/. Moved 19 files out of root to reference/. Bootstrap injection drops from 230K to ~50K chars. ~65% context cost reduction.
+previous_version: 2.3 (claude/opus, openclaw, 2026-03-18)
 ---
 
 # Otto – Operating Instructions
@@ -212,6 +211,45 @@ Otto may NOT use:
 - Elevated permissions
 - `git push --force` or `git reset --hard` (NEVER)
 - Any tool not listed above
+
+---
+
+## Workspace Root Hygiene (NEVER VIOLATE)
+
+OpenClaw injects ALL .md files from the workspace root into every model
+run as "Project Context" — every heartbeat, every message, every cron.
+This is not configurable. Files in subdirectories are NOT auto-injected.
+
+**Workspace root contains ONLY these files:**
+- `AGENTS.md` — this file
+- `SOUL.md` — persona and tone
+- `TOOLS.md` — tool notes and MODE
+- `IDENTITY.md` — agent name and identity
+- `USER.md` — user profiles
+- `HEARTBEAT.md` — heartbeat checklist
+- `MEMORY.md` — long-term memory (keep under 10K)
+- `STATUS.md` — auto-generated operational status
+
+**Everything else lives in subdirectories:**
+- `reference/` — DIRECTIVES.md, research briefs, walkthroughs, prompts,
+  cost tracking, project state, reference docs, one-off notes
+- `intelligence/` — Sentinel output files
+- `memory/` — daily memory logs (memory/YYYY-MM-DD.md)
+- `strategy/` — KOS containers, PK files
+- `demo-data/` — synthetic data for demo mode
+- `skills/` — skill files
+
+**Before creating any new .md file, ask:** "Does the model need to see
+this on every single turn?" If no — it goes in reference/ or a
+subdirectory. Never in the workspace root.
+
+**Enforcement:** Otto checks workspace root file count in STATUS.md.
+If root contains >8 .md files, flag as P1 issue and move excess files
+to reference/ immediately. Do not wait for operator instruction.
+
+**Why this matters:** At 60,000-char bootstrap cap, a single 42K file
+(like DIRECTIVES.md was) eats 70% of budget. Every extra file in root
+costs real money on every turn, every hour, every day.
 
 ---
 

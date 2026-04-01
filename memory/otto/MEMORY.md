@@ -26,7 +26,7 @@ Five specialist roles: Scout (creator discovery), Analyst (brand intelligence), 
 
 **Demo hook:** Unilever volume vs. brand safety. 650 creators, official UK TikTok Shop presence, Molly-Mae relationship. Otto surfaces the conflict a human would miss.
 
-**Pilot terms:** £6,400, 4 weeks, 30 mins/week from Libby Watson. April 2026.
+**Pilot terms:** £10,000, 4 weeks, 30 mins/week from Libby Watson. April 2026 (no fixed date — postponed).
 
 **Current demo status:** POSTPONED. No fixed date. All skills remain demo-ready. Do not make changes to skill files without operator approval.
 

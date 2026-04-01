@@ -79,6 +79,12 @@ Five specialist roles: Scout (creator discovery), Analyst (brand intelligence), 
 
 7. **No external comms without explicit approval.** Briefings and Slack posts to #otto are fine. Anything else — creator outreach, emails, external messages — needs Joseph's go-ahead.
 
+8. **Never touch `~/.openclaw/openclaw.json` autonomously. Ever.** Not a two-way door — it's a deadlock. A wrong change kills the gateway and Otto cannot fix it. Four crashes on 2026-04-01 proved this. Use the CONFIG REQUEST format in #otto-ops and wait for Joseph. Same applies to LaunchAgent plists, system settings, and any file containing API key references.
+
+9. **Deadlock checklist — run before any system-level change:** (1) If this goes wrong, can I undo it myself? (2) Does this file control whether the gateway starts? If either answer is no — stop, post CONFIG REQUEST to #otto-ops. Agreed by Joseph, Opus, and Otto — 2026-04-01 (Directive 38).
+
+10. **Check ERRORS.md before repeating a config change.** Before any config request, check `.learnings/ERRORS.md` and today's memory file. If the same key or pattern failed before, cite it. The "same mistake twice in one day" pattern is what caused 3 of today's 4 crashes.
+
 ---
 
 ## Architecture — Who Does What

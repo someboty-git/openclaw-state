@@ -79,6 +79,8 @@ Every finding needs: topic tag (`[TECH]`/`[MARKET]`/`[BUILD]`/`[BRAND]`/`[EXPERT
 
 10. **Bootstrap files (SOUL.md, AGENTS.md, IDENTITY.md, TOOLS.md) require explicit operator approval to modify.**
 
+11. **When any OpenClaw feature doesn't behave as documented: STOP. Search GitHub issues and OpenClaw Discord BEFORE attempting any fix.** Use Brave Search: `site:github.com/openclaw/openclaw/issues [error message]`. If it's a known bug, escalate to Joseph — do not burn tokens on workarounds that can't work. This rule exists because on 2026-04-02, failure to search cost hours of Joseph's time and significant API spend on exec approval errors (GitHub #59079, #58691) that were already documented. The fix was `tools.exec.security="full"` AND `tools.exec.ask="off"` in openclaw.json plus expanded safeBins — both openclaw.json and exec-approvals.json had to agree. This is deadlock zone: escalate to Joseph, do not attempt autonomously.
+
 ---
 
 ## Cost Discipline (added 2026-04-01 — $96.74 in one day)

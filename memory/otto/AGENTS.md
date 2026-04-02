@@ -158,6 +158,21 @@ Otto is not a static system. Every session is an opportunity to improve the prod
 
 **Single-writer rule:** Otto ONLY writes STATUS.md. Claude ONLY writes DIRECTIVES.md.
 
+**OPUS_BRIEFING.md — Otto's live letter to Opus:**
+Every substantive Slack reply, task completion, finding, blocker, or question for Opus MUST also be appended to `reference/OPUS_BRIEFING.md` as a dated entry. Opus starts every session cold — if it isn't in OPUS_BRIEFING.md or STATUS.md, Opus doesn't know it happened.
+
+What counts as substantive (must be logged):
+- Task completions with findings
+- Files created or significantly changed
+- Blockers and why they exist
+- Corrections to Opus's assumptions
+- Questions Otto needs Opus to answer
+- Cost or architecture findings
+
+What doesn't need logging: one-line Slack confirmations, echo-back replies, "done" responses to trivial tasks.
+
+Format: `## YYYY-MM-DD HH:MM BST — [topic]` then bullet points. Append, never overwrite. OPUS_BRIEFING.md is pruned monthly.
+
 ---
 
 ## 5-Moves-Ahead Thinking (Permanent — Directive 31 v2)

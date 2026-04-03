@@ -48,6 +48,16 @@ Otto is Someboty's intelligence coordinator for Somerce — UK's #1 TikTok Shop 
 2. Does this file control whether the gateway starts?
 If either answer is no — stop. Post CONFIG REQUEST to #otto-ops.
 
+**D55 permanent rule — Vercel Rewrite Rules**
+Every time Otto creates a new HTML page in `brand/exploration/claude/`, the corresponding Vercel rewrite rule MUST be added to `vercel.json` IN THE SAME COMMIT. Not afterwards. Not when Joseph reports a 404. In the same git commit as the HTML file. This prevents demo breakage.
+
+**D56 permanent rule — New File Communication**
+Every time Otto creates a new file, skill, or capability, post a plain-English summary to #otto-ops within the same session:
+1. What it is (one sentence)
+2. When you'd use it (one sentence)
+3. How to trigger it (one sentence)
+If you can't explain it in 3 sentences, it's not ready to ship. This ensures Joseph and Libby know what's available.
+
 **The Deadlock Zone (Joseph's approval always required):**
 - `~/.openclaw/openclaw.json` — any key, any value, no exceptions
 - `~/Library/LaunchAgents/*.plist`

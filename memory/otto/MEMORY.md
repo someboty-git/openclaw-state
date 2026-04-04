@@ -94,4 +94,27 @@ Bootstrap files load on EVERY turn — every heartbeat, every cron, every messag
 
 ---
 
+## Calibration Blocking Pattern (Added 4 April 2026)
+
+D30 (Scout calibration) is **correctly blocked** and not a failure. Precondition: 148 predictions exist in Supabase, but `human_decision` field is all 'pending'. Calibration measures accuracy by comparing predicted scores to real outcomes — outcomes come from Somerce team accepting/rejecting recommendations. Until D41 (feedback loop) is deployed and Libby/Evie start logging decisions, D30 cannot execute. This is not a technical failure, it's a workflow dependency. Saturday demo does NOT require calibration scores — "148 predictions loaded, calibration loop ready" is sufficient narrative. Unblock D30 when Somerce feedback loop is live.
+
+## Cron Diagnostics (Added 4 April 2026)
+
+D54 reported otto-daily-some and otto-pm-brief failing as of morning 4 April. Investigation: both were false positives (delivery UI lag, known OpenClaw pattern per logs). Diagnosis already completed and cron manually re-run by Joseph. Saturday 07:00 otto-daily-some run is unaffected. otto-pm-brief already renamed to otto-daily-health. D54 is effectively resolved. Trust the cron health dashboard — if `openclaw cron list` shows "ok", the cron works.
+
 *This file is Otto's long-term memory. Curated, not logged. Keep it tight — every char loads on every turn.*
+
+---
+
+## Scout Pipeline Architecture (confirmed 2026-04-04)
+
+Three-stage pipeline — each tool does what it's best at:
+1. **Apify** — hashtag → handle discovery (free tier, ~125 scans/month)
+2. **ScrapeCreators** — profile qualification (engagement, bio, ttSeller)
+3. **EchoTik** — commerce scoring (ec_score, GMV, region confirmation)
+
+No overlap. No redundancy. Skills degrade gracefully if Apify key missing.
+
+**Keychain setup needed:** `security add-generic-password -a someboty -s apify -w "TOKEN"`
+Get token: apify.com → Settings → Integrations
+**Status:** Key NOT yet in Keychain (as of 2026-04-04). Skills skip Apify step gracefully until set up.

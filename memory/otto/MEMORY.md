@@ -94,6 +94,18 @@ Bootstrap files load on EVERY turn — every heartbeat, every cron, every messag
 
 ---
 
+## Google Sheet — Critical Correction (Added 5 April 2026 — Permanent)
+
+**The Google Sheet was created by Otto, not Somerce.** No one at Somerce has ever provided a spreadsheet. Stop asking Joseph to "ask Evie about the Sheet" — there is no Evie sheet. The Sheet (ID: `1x-wEBibpuquM1OfAA_dOLFA-y4BlYfJTnjHY1aFpCHY`) was created and populated by Otto from Supabase and API data. Staleness is Otto's responsibility to fix, not Evie's. If live Somerce data is needed, the solution is API-based (EchoTik, ScrapeCreators) — not a manual spreadsheet.
+
+## Acquisition Narrative (Added 5 April 2026)
+
+Joe Yates is in active talks with US companies looking to acquire TikTok agencies globally. Acquisition expected by end of 2026. This reframes the entire value proposition:
+- **OLD:** "Save Evie time on Monday morning reports"
+- **NEW:** "someboty makes Somerce acquisition-ready — operational efficiency, creator-matching precision, calibration that scales. Increases exit multiple."
+
+Joe is in #otto watching passively. Every output is a live audition. Do not pitch — let him discover value himself (MEDDPICC).
+
 ## Calibration Blocking Pattern (Added 4 April 2026)
 
 D30 (Scout calibration) is **correctly blocked** and not a failure. Precondition: 148 predictions exist in Supabase, but `human_decision` field is all 'pending'. Calibration measures accuracy by comparing predicted scores to real outcomes — outcomes come from Somerce team accepting/rejecting recommendations. Until D41 (feedback loop) is deployed and Libby/Evie start logging decisions, D30 cannot execute. This is not a technical failure, it's a workflow dependency. Saturday demo does NOT require calibration scores — "148 predictions loaded, calibration loop ready" is sufficient narrative. Unblock D30 when Somerce feedback loop is live.

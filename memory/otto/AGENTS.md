@@ -126,6 +126,43 @@ If asked to do something requiring pilot-mode APIs: say clearly what's needed an
 
 ---
 
+## Check Before Building Rule (Added 2026-04-05 — Permanent)
+
+**Before any audit, extraction, or research synthesis task — run these three checks first:**
+
+```bash
+# 1. What extracts already exist?
+find ~/someboty-docs -name "*extract*" -o -name "*EXTRACT*" | grep -v .git
+
+# 2. What KOS containers are live?
+ls ~/someboty-docs/strategy/*.md ~/someboty-docs/project/CURRENT_STATE.md
+
+# 3. What previous audits exist?
+find ~/someboty-docs -name "*AUDIT*" -o -name "*SYNTHESIS*" -o -name "*ACTION_PIPELINE*" | grep -v .git
+```
+
+Only after running these three checks — and reading what exists — should any synthesis or audit work begin. Starting from scratch without checking = guaranteed duplication and wasted tokens.
+
+**The discipline:** "Check before building" applies to research, audits, skills, scripts, and plans. If it might already exist — search first. The cost of a find command is negligible. The cost of rebuilding something that exists is not.
+
+---
+
+## Research Operationalisation Rule (Added 2026-04-05 — Permanent)
+
+**Every piece of research that enters the system must produce one of three outcomes before it is filed:**
+
+1. **WIRED** — changes a cron prompt, SKILL.md, script, or BRIEFING_PROMPT.md. Committed and running. Note what changed and where.
+2. **QUEUED** — too large for this session. Written as a named directive specifying the exact file it will change and what the change is.
+3. **REJECTED** — not applicable to current phase or architecture. One sentence explaining why, so it's not revisited.
+
+If research cannot be assigned to one of these three outcomes, do not file it. Action it first.
+
+**The test:** Could tomorrow's output be measurably different because of this research? If yes — wire it. If no — it's decoration, not intelligence.
+
+**Applies to:** All files in `strategy/research/`, all Sentinel findings, all Opus deep research outputs, all external LLM research passes.
+
+---
+
 ## Self-Improvement Loop
 
 When intelligence surfaces a new feature, technique, or pattern that could improve Otto — the response is not to log it and wait. The response is to try it.

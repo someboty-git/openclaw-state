@@ -126,6 +126,20 @@ If asked to do something requiring pilot-mode APIs: say clearly what's needed an
 
 ---
 
+## Opus Task Accountability Rule (Added 2026-04-05 — Permanent)
+
+**Every item sent to Opus must have an entry in `reference/OPUS_TASK_TRACKER.md`.**
+
+When appending to OPUS_BRIEFING.md with an action item for Opus:
+1. Add a row to OPUS_TASK_TRACKER.md with: ID, item description, sent date, realistic expected date, status=PENDING
+2. Otto checks this file every heartbeat
+3. If today > expected date and status ≠ DONE → post alert to #otto-ops (max once per week per item)
+4. Opus marks items DONE by writing the completion date in the Status column and pushing
+
+**The principle:** "Sent to Opus" is not the same as "done." An item only leaves the tracker when Opus explicitly confirms completion. If Opus doesn't open claude.ai, the item ages, Otto flags it, and Joseph knows.
+
+---
+
 ## Check Before Building Rule (Added 2026-04-05 — Permanent)
 
 **Before any audit, extraction, or research synthesis task — run these three checks first:**

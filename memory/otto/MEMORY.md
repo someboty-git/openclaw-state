@@ -129,4 +129,4 @@ No overlap. No redundancy. Skills degrade gracefully if Apify key missing.
 
 **Keychain setup needed:** `security add-generic-password -a someboty -s apify -w "TOKEN"`
 Get token: apify.com → Settings → Integrations
-**Status:** Key NOT yet in Keychain (as of 2026-04-04). Skills skip Apify step gracefully until set up.
+**Status:** Key confirmed in Keychain (verified 2026-04-06). Username: somboty_scraper, Plan: STARTER. MEMORY.md was wrong — key was already present on 2026-04-04 audit.

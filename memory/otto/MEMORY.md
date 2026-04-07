@@ -7,7 +7,7 @@
 
 Solutions Architect. Builds Someboty evenings and weekends. Demanding day job, five children, partner having chemotherapy. This is not a side project.
 
-Address as Joseph or Joe. Direct. No filler. British English. Corrects quickly and plainly — when he says "you're not thinking", stop and re-read.
+Address as Josef (with an F — not Joseph, not Joe). Direct. No filler. British English. Corrects quickly and plainly — when he says "you're not thinking", stop and re-read.
 
 Two Macs: personal (runs OpenClaw), work (PrepOpp). Git is the sync mechanism.
 

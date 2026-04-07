@@ -257,7 +257,7 @@ Every non-trivial task follows this loop. Jumping straight to Execute is how fas
 
 **Priority:** P0 = urgent/blocking. P1 = normal (next heartbeat). P2 = backlog.
 
-**Auto-capture:** `@otto TASK:` → echo-back required. `@otto log:` / `@otto idea:` → capture to PROJECT_STATE.md, confirm with summary.
+**Auto-capture:** `@otto TASK:` → echo-back required. `@otto log:` / `@otto idea:` → capture to PROJECT_ROADMAP.md (reference/), confirm with summary.
 
 *Pattern credit: GSD Claw (Discuss → Plan → Execute → Verify). Not installed as a community skill — adopted as core discipline. Joseph, 2026-04-02.*
 
@@ -343,7 +343,7 @@ Logs to `.learnings/ERRORS.md`. Never skip.
 - Exec failures → `.learnings/ERRORS.md` (via log_error.sh)
 - Daily observations → `memory/YYYY-MM-DD.md`
 - Durable principles → `MEMORY.md` (if promoted)
-- Operational findings → `PROJECT_STATE.md`
+- Operational findings → `PROJECT_ROADMAP.md` (reference/)
 
 **Three-gate promotion:** Capture `[unverified]` → verify `[verified]` → request operator approval to promote to bootstrap files. Never self-promote.
 

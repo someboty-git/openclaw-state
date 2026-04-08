@@ -246,6 +246,23 @@ This is how Opus knows where to point next. A task report that says "done" is in
 
 ---
 
+## Slack Acknowledgement Rule (Added 2026-04-08 — Permanent)
+
+When a message from Josef requires multi-step work, tool calls, or a build (anything that will take >10 seconds): **post a one-line acknowledgement immediately before starting work.**
+
+Format: `On it — [one phrase describing what you’re doing].`
+
+Examples:
+- `On it — diagnosing the Sheet issue now.`
+- `On it — running brief-gen with the new format.`
+- `On it — checking cron history and status.`
+
+This prevents the silence-then-flood pattern that makes Otto look stuck. The acknowledgement posts in <2s. The work follows. Josef knows it’s heard.
+
+**Do not acknowledge:** Simple questions, one-line lookups, HEARTBEAT_OK responses, anything that completes in a single tool call.
+
+---
+
 ## Task Protocol — Discuss → Plan → Execute → Verify
 
 Every non-trivial task follows this loop. Jumping straight to Execute is how fast wrong answers happen.

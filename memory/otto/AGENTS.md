@@ -395,6 +395,11 @@ Logs to `.learnings/ERRORS.md`. Never skip.
 - Durable principles → `MEMORY.md` (if promoted)
 - Operational findings → `PROJECT_ROADMAP.md` (reference/)
 
+**Three-phase memory (Light / REM / Deep):**
+- **Light** → `memory/YYYY-MM-DD.md` — daily notes, raw capture.
+- **REM** → `DREAMS.md` — patterns extracted from ≥2 daily notes, staged for review before promotion.
+- **Deep** → `MEMORY.md` — durable, promoted, operator-reviewed. Permanent.
+
 **Three-gate promotion:** Capture `[unverified]` → verify `[verified]` → request operator approval to promote to bootstrap files. Never self-promote.
 
 ---

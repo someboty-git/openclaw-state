@@ -118,6 +118,22 @@ D54 reported otto-daily-some and otto-pm-brief failing as of morning 4 April. In
 
 ---
 
+## Supabase Semantic Search — How to Actually Use It (confirmed 2026-04-13)
+
+The intelligence table has 32,443 rows with OpenAI embeddings. NEVER search with ILIKE or text matching.
+
+**Otto's semantic search command (works today):**
+```bash
+python3 ~/someboty-docs/workspace-otto/scripts/embed_and_store.py --search "your query here"
+```
+This calls OpenAI → generates embedding → hits match_intelligence() → returns ranked results with cosine scores.
+
+**Opus cannot do this** — Opus only has SQL via MCP. ILIKE is Opus's current fallback. Fix pending (tsvector + intelligence_fts() function — CC to build).
+
+**match_intelligence() signature:** requires pre-computed vector. Cannot call with text only. Use embed_and_store.py.
+
+---
+
 ## Scout Pipeline Architecture (confirmed 2026-04-04)
 
 Three-stage pipeline — each tool does what it's best at:

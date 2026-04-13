@@ -118,19 +118,28 @@ D54 reported otto-daily-some and otto-pm-brief failing as of morning 4 April. In
 
 ---
 
-## Supabase Semantic Search — How to Actually Use It (confirmed 2026-04-13)
+## Supabase — Infrastructure (updated 2026-04-13)
 
-The intelligence table has 32,443 rows with OpenAI embeddings. NEVER search with ILIKE or text matching.
+**Plan: Pro tier (£20/month)** — confirmed Josef 2026-04-13. No free-tier limitations. No cold-starts, no inactivity pauses. Latency spikes on REST reads are query-level issues, not plan-related.
 
-**Otto's semantic search command (works today):**
-```bash
-python3 ~/someboty-docs/workspace-otto/scripts/embed_and_store.py --search "your query here"
-```
-This calls OpenAI → generates embedding → hits match_intelligence() → returns ranked results with cosine scores.
+**Search interfaces — all verified 2026-04-13:**
+- **Otto CLI (FTS):** `python3 scripts/search_intelligence.py "query"` — ~250ms
+- **Otto CLI (semantic):** `python3 scripts/search_intelligence.py --semantic "query"` — ~2.5s
+- **Opus (FTS):** `SELECT * FROM search_intelligence_text('query')` — instant
+- **Opus (semantic):** `SELECT * FROM semantic_search_start('query')` → wait 2s → `SELECT * FROM semantic_search_read(id)` — ~2.5s
+- **Opus (catch-up):** `SELECT * FROM whats_new('YYYY-MM-DD')` — all brain_comms + intelligence + decisions since date
+- **Edge function:** `POST /functions/v1/search-intelligence` with Bearer auth
 
-**Opus cannot do this** — Opus only has SQL via MCP. ILIKE is Opus's current fallback. Fix pending (tsvector + intelligence_fts() function — CC to build).
+**brain_comms type enum (hard constraint):** task, finding, decision, question, teaching, correction, research-request, research-result
+**brain_comms status enum (hard constraint):** NEW, ACTIONED, COMPLETED
+**brain_comms from/to_brain values:** otto, opus, cc, all
 
-**match_intelligence() signature:** requires pre-computed vector. Cannot call with text only. Use embed_and_store.py.
+**Otto brain_comms scripts (built 2026-04-13, D104 closed):**
+- `scripts/check_brain_comms.py` — read inbox, mark ACTIONED
+- `scripts/search_intelligence.py` — FTS + semantic search CLI
+- `scripts/reply_brain_comms.py` — send messages to other brains
+
+**Old method (deprecated):** embed_and_store.py --search. Still works but use search_intelligence.py instead.
 
 ---
 

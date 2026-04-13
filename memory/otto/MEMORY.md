@@ -155,3 +155,20 @@ No overlap. No redundancy. Skills degrade gracefully if Apify key missing.
 **Keychain setup needed:** `security add-generic-password -a someboty -s apify -w "TOKEN"`
 Get token: apify.com → Settings → Integrations
 **Status:** Key confirmed in Keychain (verified 2026-04-06). Username: somboty_scraper, Plan: STARTER. MEMORY.md was wrong — key was already present on 2026-04-04 audit.
+
+## Prime Directive Correction (2026-04-13 — PERMANENT)
+
+**The target signer is JOE YATES, not Libby Watson.**
+
+Josef confirmed tonight: Joe is the decision maker. Libby validates but cannot sign. Joe Yates (CEO, Somerce) is in active acquisition talks, watches #otto silently, and is the person who signs the pilot AND the person whose acquisition multiple someboty increases.
+
+Everything pivots toward Joe:
+- Pitch frame: acquisition asset, not operational tool
+- Language: Decision Trace, proprietary intelligence, exit multiple — not "saves Evie time"
+- The email Josef needs to send is to JOE, not Libby
+- The one-pager (project/JOE_YATES_ONEPAGER.md) is the right asset — it already exists
+- Joe can pull forward the acquisition timeline if he sees someboty as a valuation lever
+
+Libby is still important — she validates, she becomes the power user post-signing, and Joe may ask her "is this useful?" before committing. But the close happens with Joe.
+
+**Prime directive updated:** Get Joe Yates to sign or commit to terms.

@@ -88,6 +88,49 @@ If you can't explain it in 3 sentences, it's not ready to ship. This ensures Jos
 
 The breadcrumb answers three questions for Opus: What was Otto doing? What exactly changed? Is anything else likely broken for the same reason?
 
+**Document Fix Propagation Rule (agreed otto+cc 2026-04-13 — Permanent):**
+
+When Otto fixes any document that defines how Otto behaves — SKILL.md files, AGENTS.md process sections, scripts that define methodology, reference docs that other brains rely on — the fix must propagate across the full system in one atomic action. A fix that stays in one file while the same wrong assumption lives in three others is not a fix.
+
+**Scope — this rule triggers when editing:**
+- Any `skills/*/SKILL.md`
+- `AGENTS.md` (process sections, not cosmetic)
+- `reference/*.md` methodology docs (SCOUT_BINARY_SCORING, DIRECTIVES patterns, etc.)
+- Scripts that define behaviour (`kos_promote.py`, `sentinel_router.py`, `auto_calibrate.py`, etc.)
+
+**The six steps (all in the same session, no exceptions):**
+
+1. **Cross-check FIRST.** Before committing the fix, grep for the same assumption in other files:
+   ```bash
+   grep -r "the wrong assumption" ~/someboty-docs/workspace-otto/ --include="*.md" --include="*.py" | grep -v .git
+   ```
+   Fix every instance found. One commit, not six.
+
+2. **Git commit.** `[otto] fix: [filename] — [one line what changed and why]`. If multiple files fixed from cross-check, list them all.
+
+3. **STATUS.md.** Log the change with `target:` and `phase:` tags. What changed, which files, why.
+
+4. **OPUS_BRIEFING.md.** Dated entry: what the methodology was, what it is now, which files changed. Opus starts cold — write as if Opus has zero context.
+
+5. **brain_comms.** Send a `decision` type message to `all` (not just Opus — CC scheduled agents also need to know):
+   ```bash
+   python3 scripts/reply_brain_comms.py --to all --type decision --priority P1 \
+     --subject "Methodology changed: [filename]" \
+     --body "What: [old → new]. Why: [reason]. Files: [list]. Cross-check: [what was grepped, what else was found/fixed]."
+   ```
+
+6. **#otto-ops post.** D56 format: what changed, when you'd care, how it affects your work.
+
+**The principle:** A methodology doc is a standing order. Changing it silently is like changing a law without telling anyone it changed. The propagation cost is 5 minutes. The cost of Opus or CC acting on stale methodology is hours of wrong work.
+
+**CC Spawn Protocol (Permanent — agreed otto+cc 2026-04-13):**
+
+When spawning CC for any task that touches a methodology doc (SKILL.md, AGENTS.md process sections, reference/*.md, behaviour scripts), the spawn prompt MUST include this briefing line:
+
+> "Before making changes: read workspace-otto/AGENTS.md sections 'Document Fix Propagation Rule' and 'CC Spawn Protocol'. Apply the full 6-step propagation rule to any methodology doc you touch."
+
+This is not optional. CC starts cold every session. Without this line, CC will make good changes that propagate nowhere. The briefing line is the handshake that connects CC to the standing methodology.
+
 **Gated (human approval required):**
 - Creator outreach messages (draft only)
 - Any communication leaving Somerce

@@ -129,6 +129,10 @@ When spawning CC for any task that touches a methodology doc (SKILL.md, AGENTS.m
 
 > "Before making changes: read workspace-otto/AGENTS.md sections 'Document Fix Propagation Rule' and 'CC Spawn Protocol'. Apply the full 6-step propagation rule to any methodology doc you touch."
 
+**For any significant new feature build (>1 file, >30min estimated work), also include:**
+
+> "Run `/spec` first using Addy Osmani's agent-skills plugin before writing any code. If the plugin isn't installed: `/plugin marketplace add addyosmani/agent-skills && /plugin install agent-skills@addy-agent-skills`. Spec-before-code is non-negotiable for Someboty builds."
+
 This is not optional. CC starts cold every session. Without this line, CC will make good changes that propagate nowhere. The briefing line is the handshake that connects CC to the standing methodology.
 
 **Gated (human approval required):**

@@ -88,6 +88,24 @@ If you can't explain it in 3 sentences, it's not ready to ship. This ensures Jos
 
 The breadcrumb answers three questions for Opus: What was Otto doing? What exactly changed? Is anything else likely broken for the same reason?
 
+**Flag-don't-act extension (class-D errors, added 2026-04-26):**
+
+Preflight rejections (class-D per PRINCIPLES §1.6) are bootstrap-misalignment
+errors, not script errors. The fix is payload-shape, never retry. On
+detection:
+
+1. Otto's `log_error.sh` writes P0 brain_comm to CC (rate-limited per
+   the rollup pattern above).
+2. Otto STOPS that cron's execution. Does not retry, does not swap shape,
+   does not pop stash.
+3. CC actions the brain_comm: rewrites the payload per
+   `workspace-otto/reference/PAYLOAD_TEMPLATE_PREFLIGHT_SAFE.md`,
+   verifies via canary run, marks ACTIONED.
+
+The principle: Otto is the operator, CC is the doctrine custodian.
+Class-D errors require doctrine application (template rewrite), which
+is CC's domain. Otto flags. CC fixes.
+
 **Document Fix Propagation Rule (agreed otto+cc 2026-04-13 — Permanent):**
 
 When Otto fixes any document that defines how Otto behaves — SKILL.md files, AGENTS.md process sections, scripts that define methodology, reference docs that other brains rely on — the fix must propagate across the full system in one atomic action. A fix that stays in one file while the same wrong assumption lives in three others is not a fix.
@@ -122,6 +140,64 @@ When Otto fixes any document that defines how Otto behaves — SKILL.md files, A
 6. **#otto-ops post.** D56 format: what changed, when you'd care, how it affects your work.
 
 **The principle:** A methodology doc is a standing order. Changing it silently is like changing a law without telling anyone it changed. The propagation cost is 5 minutes. The cost of Opus or CC acting on stale methodology is hours of wrong work.
+
+## Preflight-Safe Payload Doctrine (Permanent — added 2026-04-26)
+
+Any cron payload, agent-spawn message, or Bash sequence that invokes
+python3, node, or any non-shell interpreter MUST follow the canonical
+shape in `workspace-otto/reference/PAYLOAD_TEMPLATE_PREFLIGHT_SAFE.md`.
+
+OpenClaw 2026.4.15 (issue #60476) silently rejects payloads that
+co-locate python with `cd`, `~/`, `&&`, `|`, or `2>&1`. Rejected
+payloads burn the wall-clock budget without running the script — they
+look like timeouts but aren't. ~13 of Otto's python crons broke
+silently on 2026-04-25/26 before this was caught.
+
+**Do not invent shape on the fly.** Copy the canonical template,
+substitute the script name and ingest tag, ship.
+
+**Cron model defaults.** New crons must declare model explicitly.
+Synthesis crons (anything that writes to `intelligence/` or generates
+briefings) default to Sonnet; mechanical crons (ingest, calibration,
+fetch, cleanup) default to Haiku. Sonnet on synthesis is earning its
+keep — the comprehension layer it produces is what the entire system
+reads. Cost discipline lives in context architecture (smaller cold
+starts, fewer 200k-1M tier calls, fewer cache writes), not model
+downgrades.
+
+When changing this doctrine: grep the codebase for any cron payload
+referencing python3 and apply the change in one commit (Document Fix
+Propagation Rule applies).
+
+## Pre-Build Context Retrieval Doctrine (Permanent — added 2026-04-26)
+
+CHECK-FIRST applies to builds, not just claims. Before any agent or cron
+proposes a new table, function, edge function, file, or pipeline
+component, it MUST retrieve the current state of every dependency it
+will touch:
+
+- **Schema additions** → query `information_schema.tables` /
+  `information_schema.columns` first. Confirm the column doesn't already
+  exist before proposing it.
+- **Edge Function or RPC additions** → call `list_edge_functions` and
+  list_extensions first. Confirm the capability isn't already deployed.
+- **File additions** → run Glob/ls on the target path first. Confirm
+  the file doesn't already exist or that the directory is real.
+- **Pipeline wiring** → read the consumer script and verify the
+  function/flag/path being referenced. Don't propose `--ingest` if you
+  haven't confirmed the script accepts that flag.
+- **Doctrine references** → search for prior canonical text before
+  re-defining the same rule. Two contradicting versions of the same
+  doctrine costs more than spending 30 seconds checking.
+
+The cost of one verification call is seconds. The cost of a build that
+references a non-existent function or duplicates an existing capability
+is hours of wrong work and Joseph's trust. The 2026-04-26 OpenClaw
+2026.4.15 cascade was made worse by every brain proposing fixes that
+referenced files or behaviours that hadn't been verified.
+
+This doctrine is the build-time companion to CC_DOCTRINE's CHECK-FIRST
+GATE (which applies to assertions). Same principle, different surface.
 
 **CC Spawn Protocol (Permanent — agreed otto+cc 2026-04-13):**
 
